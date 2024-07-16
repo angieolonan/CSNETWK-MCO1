@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
 import java.util.Scanner;
 
 // DEVELOPER'S NOTE : Code is untested
@@ -9,6 +10,7 @@ public class Client {
     private DataInputStream in = null;
     private DataOutputStream out = null;
     private ArrayList<String> users;
+
 
     //                               0         1          2           3        4       5      6      7
     ArrayList<String> keywords = {"/join", "/leave", "/register", "/store", "/dir", "/get", "/?", "/end"};
@@ -78,26 +80,33 @@ public class Client {
                 }
                 
                 // /store
-                // !!INCOMPLETE!!
                 if (comSplit[0].equals(keywords[3])) {
-                    if (comSplit[1] != null && comSplit[2] == null) {
+                    if (comSplit.length == 2) {
                         this.storeFile(comSplit[1]);
                     }
                     else {
-                        System.out.println ("\nERROR: Command parameters are incorrect/incomplete");
+                        System.out.println("\nERROR: Command parameters are incorrect/incomplete");
                     }
                     continue;
                 }
 
                 // /dir
-                // !!INCOMPLETE!!
                 if (comSplit[0].equals(keywords[4])) {
+                    if (comSplit.length == 1) {
+                        this.listFiles();
+                    } else {
+                        System.out.println("\nERROR: Command does not have parameters");
+                    }
                     continue;
                 }
 
                 // /get
-                // !!INCOMPLETE!!
                 if (comSplit[0].equals(keywords[5])) {
+                    if (comSplit.length == 2) {
+                        this.getFile(comSplit[1]);
+                    } else {
+                        System.out.println("\nERROR: Command parameters are incorrect/incomplete");
+                    }
                     continue;
                 }
             }
@@ -222,8 +231,84 @@ public class Client {
         return result;
     }
 
+    /**
+     * Stores a file on the server.
+     *
+     * @param  fileName  the name of the file to store
+     */
     public void storeFile (String fileName) {
-        
+        try {
+            File file = new File(fileName);
+            if (!file.exists()) {
+                System.out.println("\nError: File not found.");
+                return;
+            }
+
+            FileInputStream fileInput = new FileInputStream(file);
+            out.writeUTF("/store " + fileName);
+            out.writeLong(file.length());
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while((bytesRead = fileInput.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+
+            fileInput.close();
+            System.out.println("\nFile stored successfully.");
+        } catch (IOException e){
+            System.out.println("\nError: Unable to store file.");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * A method to list files from the server.
+     */
+    public void listFiles() {
+        try {
+            out.writeUTF("/dir");
+
+            String fileList = in.readUTF();
+            System.out.println("\nFiles on server:");
+            System.out.println(fileList);
+        } catch (IOException e) {
+            System.out.println("\nERROR: Unablee to retrieve file list.");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Retrieves a file from the server based on the provided file name.
+     *
+     * @param  fileName  the name of the file to retrieve
+     */
+    public void getFile (String fileName) {
+        try {
+            out.writeUTF("/get " + fileName);
+            long fileSize = in.readLong();
+
+            if(fileSize == -1) {
+                System.out.println("\nERROR: File not found on server.");
+                return;
+            }
+
+            File file = new File(fileName);
+            FileOutputStream fileOutput = new FileOutputStream(file);
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while(fileSize > 0 && (bytesRead = in.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
+                fileOutput.write(buffer, 0, bytesRead);
+                fileSize -= bytesRead;
+            }
+
+            fileOutput.close();
+            System.out.println("\nFile receive successfully.");
+        } catch(IOException e){
+            System.out.println("\nERROR: Unable to fetch file.");
+            e.printStackTrace();
+        }
     }
 
     // displays the list of available commands
