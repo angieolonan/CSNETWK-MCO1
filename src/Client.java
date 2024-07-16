@@ -1,5 +1,7 @@
 import java.io.*;
 import java.net.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -16,7 +18,7 @@ public class Client {
     ArrayList<String> keywords = {"/join", "/leave", "/register", "/store", "/dir", "/get", "/?", "/end"};
     // server address and port is 127.0.0.1 12345 
 
-    // DEVELOPER'S NOTE : I'm not yet sure if this is correct and proper, I think I need to research more on this
+    // DJ : I'm not yet sure if this is correct and proper, I think I need to research more on this
     public Client (String address, int portNum) {
         this.address = address;
         this.portNum = portNum;
@@ -45,7 +47,7 @@ public class Client {
 
             // /join 
             if (comSplit[0].equals(keywords[0])) {
-                if (comSplit[1] != null && comSplit[2] != null) {
+                if (comSplit.length == 3) {
                     String address = comSplit[1];
                     int portNum = ((int)comSplit[2]);
                     check = this.createConnect(address, portNum, clientSocket); // address remains as String, port is typecasted into int
@@ -64,13 +66,18 @@ public class Client {
             else {
                 // /leave
                 if (comSplit[0].equals(keywords[1])) {
-                    this.disConnect();
+                    if (comSplit.length == 1) {
+                        this.disConnect();
+                    }
+                    else {
+                        System.out.println("\nERROR: Command does not have parameters");
+                    }
                     continue;
                 }
 
                 // /register
                 if (comSplit[0].equals(keywords[2])) {
-                    if (comSplit[1] != null && comSplit[2] == null) {
+                    if (comSplit.length == 2) {
                         this.registerUser(comSplit[1]);
                     }
                     else {
@@ -113,20 +120,20 @@ public class Client {
 
             // /?
             if (comSplit[0].equals(keywords[6])) {
-                if (comSplit[1] != null) {
-                    System.out.println ("\nERROR: Command does not have parameters");
+                if (comSplit.length == 1) {
+                    this.dispCommands();
                 }
                 else {
-                    this.dispCommands();
+                    System.out.println ("\nERROR: Command does not have parameters");
                 }
                 continue;
             }
 
             // /end
             // ends the program immediately, unless the client is still connected to the server
-            // DEVELOPER'S NOTE : I added this command, not sure if it's needed tho
+            // DJ : I added this command, not sure if it's needed tho
             if (comSplit[0].equals(keywords[7])) {
-                if (comSplit[1] != null) {
+                if (comSplit.length != 1) {
                     System.out.println ("\nERROR: Command does not have parameters");
                 }
                 else if (createConnect(address, portNum, clientSocket) && !(disConnect())) {
@@ -174,7 +181,7 @@ public class Client {
 
     // disconnects the client from the server
     // returns true if disconnection was successful, otherwise false
-    // DEVELOPER'S NOTE : I don't know if the catch is even needed, just added it for the try function to work
+    // DJ : I don't know if the catch is even needed, just added it for the try function to work
     public boolean disConnect () {
         boolean result = false;
 
@@ -231,53 +238,68 @@ public class Client {
         return result;
     }
 
+    // Angie
     /**
      * Stores a file on the server.
      *
      * @param  fileName  the name of the file to store
      */
     public boolean storeFile (String fileName) {
-        try {
-            File file = new File(fileName);
-            if (!file.exists()) {
-                System.out.println("\nError: File not found.");
-                return false;
+        boolean result = false;
+        File file = new File(fileName);
+        
+        if (file.exists() && file.isFile() && !file.isDirectory()) {
+            try {
+                FileInputStream fileInput = new FileInputStream(file);
+                out.writeUTF("/store " + fileName);
+                out.writeLong(file.length());
+
+                byte[] buffer = new byte[4096]; // or 1024 * 4, according to one website
+                int bytesRead = 0;
+                while((bytesRead = fileInput.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                    out.flush();
+                }
+
+                fileInput.close();
+
+                LocalDateTime dateTime = LocalDateTime.now();
+                DateTimeFormatter dateTimeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+                String formatDate = dateTime.format(dateTimeFormat);
+
+                System.out.println("\n<" + formatDate + ">" + ": Uploaded " + fileName + " successfully!");
+                
+                result = true;
+            } 
+            catch (IOException e){
+                System.out.println("\nError: Unable to store file.");
+                e.printStackTrace();
             }
-
-            FileInputStream fileInput = new FileInputStream(file);
-            out.writeUTF("/store " + fileName);
-            out.writeLong(file.length());
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while((bytesRead = fileInput.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-            }
-
-            fileInput.close();
-            System.out.println("\nFile stored successfully.");
-            return true;
-        } catch (IOException e){
-            System.out.println("\nError: Unable to store file.");
-            e.printStackTrace();
-            return false;
+        }
+        else {
+            System.out.println("\nError: File not found.");
         }
     }
-
+    
     /**
      * A method to list files from the server.
      */
-    public void listFiles() {
+    public boolean listFiles() {
+        boolean result = false;
         try {
             out.writeUTF("/dir");
 
             String fileList = in.readUTF();
             System.out.println("\nFiles on server:");
             System.out.println(fileList);
+
+            result = true;
         } catch (IOException e) {
             System.out.println("\nERROR: Unablee to retrieve file list.");
             e.printStackTrace();
         }
+        return result;
     }
 
     /**
@@ -286,32 +308,33 @@ public class Client {
      * @param  fileName  the name of the file to retrieve
      */
     public boolean getFile (String fileName) {
-        try {
-            out.writeUTF("/get " + fileName);
-            long fileSize = in.readLong();
+        boolean result = false;
+        out.writeUTF("/get " + fileName);
+        long fileSize = in.readLong();
 
-            if(fileSize == -1) {
-                System.out.println("\nERROR: File not found on server.");
-                return false;
+        if (fileSize != -1) {
+            try {
+                File file = new File(fileName);
+                FileOutputStream fileOutput = new FileOutputStream(file);
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while(fileSize > 0 && (bytesRead = in.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
+                    fileOutput.write(buffer, 0, bytesRead);
+                    fileSize -= bytesRead;
+                }
+
+                fileOutput.close();
+                System.out.println("\nFile retrieved successfully!");
+                result = true;
+                }
+            catch(IOException e){
+                System.out.println("\nERROR: Unable to retrieve file");
+                e.printStackTrace();
             }
-
-            File file = new File(fileName);
-            FileOutputStream fileOutput = new FileOutputStream(file);
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while(fileSize > 0 && (bytesRead = in.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
-                fileOutput.write(buffer, 0, bytesRead);
-                fileSize -= bytesRead;
-            }
-
-            fileOutput.close();
-            System.out.println("\nFile receive successfully.");
-            return true;
-        } catch(IOException e){
-            System.out.println("\nERROR: Unable to fetch file.");
-            e.printStackTrace();
-            return false;
+        }
+        else {
+            System.out.println("\nERROR: File not found on server");
         }
     }
 
