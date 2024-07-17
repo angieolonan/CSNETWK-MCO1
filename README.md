@@ -40,3 +40,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /?
      ```
+3. Output Field
+   The output field is included to display server status from other users as well as systemmessages from the interaction of the client and the server application.
+5. Error Message
+   Error messages are outputted upon unsuccessful execution of commands.
