@@ -7,7 +7,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
 
 ## Client Application Specifications
 1. The client application will function as the User Interface of a user when using the File Exchange System.
-2. Input Commands:
+2. **Input Commands:**
    - Connect to the server application
      ```
      /join <server_ip_add> <port>
@@ -40,7 +40,5 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /?
      ```
-3. Output Field
-   The output field is included to display server status from other users as well as systemmessages from the interaction of the client and the server application.
-5. Error Message
-   Error messages are outputted upon unsuccessful execution of commands.
+3. **Output Field:** The output field is included to display server status from other users as well as systemmessages from the interaction of the client and the server application.
+5. **Error Message:** Error messages are outputted upon unsuccessful execution of commands.
