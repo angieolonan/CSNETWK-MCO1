@@ -46,7 +46,7 @@ public class Client {
             }
 
             // /join 
-            if (comSplit[0].equals(keywords[0])) {
+            if (comSplit[0].equals(keywords(0))) {
                 if (comSplit.length == 3) {
                     String address = comSplit[1];
                     int portNum = ((int)comSplit[2]);
@@ -65,7 +65,7 @@ public class Client {
             }
             else {
                 // /leave
-                if (comSplit[0].equals(keywords[1])) {
+                if (comSplit[0].equals(keywords(1))) {
                     if (comSplit.length == 1) {
                         this.disConnect();
                     }
@@ -76,7 +76,7 @@ public class Client {
                 }
 
                 // /register
-                if (comSplit[0].equals(keywords[2])) {
+                if (comSplit[0].equals(keywords(2))) {
                     if (comSplit.length == 2) {
                         this.registerUser(comSplit[1]);
                     }
@@ -87,7 +87,7 @@ public class Client {
                 }
                 
                 // /store
-                if (comSplit[0].equals(keywords[3])) {
+                if (comSplit[0].equals(keywords(3))) {
                     if (comSplit.length == 2) {
                         this.storeFile(comSplit[1]);
                     }
@@ -98,7 +98,7 @@ public class Client {
                 }
 
                 // /dir
-                if (comSplit[0].equals(keywords[4])) {
+                if (comSplit[0].equals(keywords(4))) {
                     if (comSplit.length == 1) {
                         this.listFiles();
                     } else {
@@ -108,7 +108,7 @@ public class Client {
                 }
 
                 // /get
-                if (comSplit[0].equals(keywords[5])) {
+                if (comSplit[0].equals(keywords(5))) {
                     if (comSplit.length == 2) {
                         this.getFile(comSplit[1]);
                     } else {
@@ -119,7 +119,7 @@ public class Client {
             }
 
             // /?
-            if (comSplit[0].equals(keywords[6])) {
+            if (comSplit[0].equals(keywords(6))) {
                 if (comSplit.length == 1) {
                     this.dispCommands();
                 }
@@ -132,7 +132,7 @@ public class Client {
             // /end
             // ends the program immediately, unless the client is still connected to the server
             // DJ : I added this command, not sure if it's needed tho
-            if (comSplit[0].equals(keywords[7])) {
+            if (comSplit[0].equals(keywords(7))) {
                 if (comSplit.length != 1) {
                     System.out.println ("\nERROR: Command does not have parameters");
                 }
