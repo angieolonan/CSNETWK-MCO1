@@ -12,6 +12,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /join <server_ip_add> <port>
      ```
+     e.g., `/join 192.168.1.1 12345`
    - Disconnect from the server application
      ```
      /leave
@@ -20,10 +21,12 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /register <handle>
      ```
+     e.g., `/register User1`
    - Send file to server
      ```
      /store <filename>
      ```
+     e.g., `/store Hello.txt`
    - Request directory file list from a server
      ```
      /dir
@@ -32,6 +35,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /get <filename>
      ```
+     e.g., `/get Hello.txt`
    - Request command help to output all Input Syntax commands for references
      ```
      /?
