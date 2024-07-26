@@ -49,7 +49,7 @@ public class Server {
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
+    }    
 
     public Set<String> getDirectory() {
         return userFiles.keySet();
@@ -145,10 +145,13 @@ public class Server {
 
         private void handleLeave() throws IOException {
             out.writeUTF("Connection closed. Thank you!");
+            out.flush(); 
             server.removeClient(clientHandle);
             in.close();
             out.close();
             clientSocket.close();
+
+            System.out.println("Client " + clientHandle + " has disconnected.");
         }
 
         private void handleRegister(String[] commandSplit) throws IOException {
@@ -168,15 +171,21 @@ public class Server {
 
         private void handleStore(String[] commandSplit) throws IOException {
             if (commandSplit.length != 2) {
-                out.writeUTF("Error: Command parameters do not match or is not allowed.");
+                out.writeUTF("Error: Command parameters do not match or are not allowed.");
                 return;
             }
             String filename = commandSplit[1];
-            byte[] data = new byte[in.readInt()];
-            in.readFully(data);
-            server.storeFile(clientHandle, filename, data);
-            out.writeUTF(clientHandle + "<" + new Date() + ">: Uploaded " + filename);
-        }
+            long fileSize = in.readLong(); // Corrected to read a long value for the file size
+        
+            if (fileSize > 0) {
+                byte[] data = new byte[(int) fileSize];
+                in.readFully(data);
+                server.storeFile(clientHandle, filename, data);
+                out.writeUTF(clientHandle + "<" + new Date() + ">: Uploaded " + filename);
+            } else {
+                out.writeUTF("Error: Invalid file size received.");
+            }
+        }        
 
         private void handleDir() throws IOException {
             Set<String> files = server.getDirectory();
@@ -189,21 +198,27 @@ public class Server {
 
         private void handleGet(String[] commandSplit) throws IOException {
             if (commandSplit.length != 2) {
-                out.writeUTF("Error: Command parameters do not match or is not allowed.");
+                out.writeUTF("Error: Command parameters do not match or are not allowed.");
                 return;
             }
             String filename = commandSplit[1];
-            String owner = server.userFiles.get(filename);
-            if (owner == null) {
-                out.writeUTF("Error: File not found in the server.");
+            File file = new File(filename);
+            if (!file.exists() || file.isDirectory()) {
+                out.writeLong(-1);
             } else {
-                byte[] data = server.getFile(filename);
-                out.writeInt(data.length);
-                out.write(data);
-                out.writeUTF("File received from Server: " + filename);
+                out.writeLong(file.length());
+                try (FileInputStream fileInput = new FileInputStream(file)) {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = fileInput.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
+                }
+                // It's a good practice to ensure the end of the data stream is clear.
+                out.flush();
             }
         }
-
+        
         private void handleHelp() throws IOException {
             out.writeUTF("List of commands:\n" + String.join("\n", server.keywords));
         }
