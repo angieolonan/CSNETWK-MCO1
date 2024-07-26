@@ -12,7 +12,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /join <server_ip_add> <port>
      ```
-     e.g., `/join 192.168.1.1 12345`
+     e.g., `/join 127.0.0.1 12345`
    - Disconnect from the server application
      ```
      /leave
