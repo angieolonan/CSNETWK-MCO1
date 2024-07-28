@@ -12,7 +12,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
      ```
      /join <server_ip_add> <port>
      ```
-     e.g., `/join 127.0.0.1 12345`
+     e.g., `/join 192.168.1.1 12345`
    - Disconnect from the server application
      ```
      /leave
@@ -44,3 +44,8 @@ The File Exchange System is designed as the final project for our CSNETWK course
 5. **Error Message:** Error messages are outputted upon unsuccessful execution of commands.
 
 ## Installation and Usage
+1. Download and extract the repository files
+2. Open command prompt and navigate to the repository folder or navigate to the the address bar and type `cmd`
+3. Run the server using `java server`
+4. Run a client using `java client`
+5. Join the server on the clients using `/join 127.0.0.1 12345`
