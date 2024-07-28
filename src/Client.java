@@ -1,241 +1,286 @@
+import javax.swing.*;
+import java.awt.*;
 import java.io.*;
-import java.net.*;
-import java.util.ArrayList;
-import java.util.Scanner;
-
-// DEVELOPER'S NOTE : Code is tested
+import java.net.Socket;
 
 public class Client {
-    private Socket clientSocket = null;
-    private DataInputStream in = null;
-    private DataOutputStream out = null;
-    private ArrayList<String> users = new ArrayList<>();
-    private boolean check = false; // Track connection status
-    private String address;
-    private int portNum;
 
-    // List of keywords
-    private String[] keywords = {"/join", "/leave", "/register", "/store", "/dir", "/get", "/?", "/end"};
+    private JFrame mainFrame;
+    private JTextField inputField;
+    private JTextArea outputArea;
+    private JButton sendBtn;
+    private Socket clientSocket;
+    private DataOutputStream outputStream;
+    private DataInputStream inputStream;
+    private final String separatorLine = "----------------------------------------\n";
+    private boolean connected = false;
+    private boolean registered = false;
+    private String username;
 
-    public Client(String address, int portNum) {
-        this.address = address;
-        this.portNum = portNum;
+    public Client() {
+        setupUI();
     }
 
-    // Basic UI of the client
-    public void UI() {
-        Scanner sc = new Scanner(System.in);
+    private void setupUI() {
+        mainFrame = new JFrame("Client Application");
+        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setSize(600, 400);
+        mainFrame.setLayout(new BorderLayout());
 
-        while (true) {
-            System.out.print("\nEnter command: ");
-            String command = sc.nextLine();
-            String[] comSplit = command.split(" ");
+        inputField = new JTextField();
+        outputArea = new JTextArea();
+        outputArea.setEditable(false);
+        sendBtn = new JButton("Send");
 
-            if (!checkCommands(comSplit[0])) {
-                System.out.println("\nERROR: Invalid Command");
-                continue;
-            }
+        mainFrame.add(inputField, BorderLayout.NORTH);
+        mainFrame.add(new JScrollPane(outputArea), BorderLayout.CENTER);
+        mainFrame.add(sendBtn, BorderLayout.SOUTH);
 
-            switch (comSplit[0]) {
-                case "/join":
-                    if (comSplit.length == 3) {
-                        address = comSplit[1];
-                        portNum = Integer.parseInt(comSplit[2]);
-                        check = createConnect(address, portNum);
-                    } else {
-                        System.out.println("\nERROR: Command parameters are incorrect/incomplete");
-                    }
-                    break;
-                case "/leave":
-                    if (check && comSplit.length == 1) {
-                        disConnect();
-                    } else {
-                        System.out.println("\nERROR: Command does not have parameters or not connected to server.");
-                    }
-                    break;
-                case "/register":
-                    if (check && comSplit.length == 2) {
-                        registerUser(comSplit[1]);
-                    } else {
-                        System.out.println("\nERROR: Command parameters are incorrect/incomplete or not connected to server.");
-                    }
-                    break;
-                case "/store":
-                    if (check && comSplit.length == 2) {
-                        storeFile(comSplit[1]);
-                    } else {
-                        System.out.println("\nERROR: Command parameters are incorrect/incomplete or not connected to server.");
-                    }
-                    break;
-                case "/dir":
-                    if (check && comSplit.length == 1) {
-                        listFiles();
-                    } else {
-                        System.out.println("\nERROR: Command does not have parameters or not connected to server.");
-                    }
-                    break;
-                case "/get":
-                    if (check && comSplit.length == 2) {
-                        getFile(comSplit[1]);
-                    } else {
-                        System.out.println("\nERROR: Command parameters are incorrect/incomplete or not connected to server.");
-                    }
-                    break;
-                case "/?":
-                    dispCommands();
-                    break;
-                case "/end":
-                    if (check) {
-                        System.out.println("\nERROR: Cannot end program. Disconnect from server first.");
-                    } else {
-                        System.out.println("\nEnding program, goodbye!");
-                        return; // Exit the loop and end the program
-                    }
-                    break;
-                default:
-                    System.out.println("\nERROR: Invalid Command");
-            }
-        }
+        sendBtn.addActionListener(e -> handleCommand());
+
+        mainFrame.setVisible(true);
     }
 
-    // checks if the given command is within the list of commands
-    public boolean checkCommands (String command) {
-        for (String k : keywords) {
-            if (command.equals(k)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // creates the connection between client and server
-    // returns true if connection has been made, otherwise false
-    public boolean createConnect (String address, int portNum) {
+    private void handleCommand() {
         try {
-            clientSocket = new Socket(address, portNum);
-            in = new DataInputStream(clientSocket.getInputStream());
-            out = new DataOutputStream(clientSocket.getOutputStream());
-            System.out.println("\nConnection Successful!");
-            return true;
-        } catch (IOException e) {
-            System.out.println("\nERROR: Cannot find server. Please check the IP address and port number");
-            return false;
-        }
-    }
+            String command = inputField.getText().trim();
+            inputField.setText(""); // Clear the input field
 
-    // disconnects the client from the server
-    public void disConnect() {
-        try {
-            if (in != null) in.close();
-            if (out != null) out.close();
-            if (clientSocket != null) clientSocket.close();
-            System.out.println("\nDisconnection Successful!");
-            check = false;
-        } catch (IOException e) {
-            System.out.println("\nERROR: Cannot disconnect. Unresolved issues");
-        }
-    }
-
-    // registers the user
-    public void registerUser(String name) {
-        try {
-            out.writeUTF("/register " + name);
-            String response = in.readUTF();
-            if (response.startsWith("Error")) {
-                System.out.println(response);
-            } else {
-                System.out.println(response);
+            if (command.equals("/?")) {
+                showHelp();
+                return;
             }
-        } catch (IOException e) {
-            System.out.println("\nERROR: Unable to register user");
-        }
-    }
 
-    // Stores a file on the server.
-    public void storeFile(String fileName) {
-        File file = new File(fileName);
-    
-        if (file.exists() && file.isFile()) {
-            try {
-                out.writeUTF("/store " + fileName); // Send the command and file name
-                out.writeLong(file.length()); // Send the file size
-    
-                byte[] buffer = new byte[1024 * 4]; // 4 KB buffer size
-                int bytesRead;
-                try (FileInputStream fileInput = new FileInputStream(file)) {
-                    while ((bytesRead = fileInput.read(buffer)) != -1) {
-                        out.write(buffer, 0, bytesRead); // Send file data in chunks
-                    }
+            if (!connected && !command.startsWith("/join ")) {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(mainFrame,
+                        "Not connected to a server. Please connect first.",
+                        "Connection Error",
+                        JOptionPane.ERROR_MESSAGE);
+                });
+                return;
+            }
+
+            if (command.startsWith("/join ")) {
+                String[] parts = command.split(" ");
+                if (parts.length == 3) {
+                    String host = parts[1];
+                    int port = Integer.parseInt(parts[2]);
+                    createConnect(host, port);
+                } else {
+                    appendToOutput("\nInvalid command. Usage: /join <server-ip> <port>\n" + separatorLine);
                 }
-                out.flush(); // Ensure all data is sent
-                System.out.println("\nUploaded " + fileName + " successfully!");
-            } catch (IOException e) {
-                System.out.println("\nERROR: Unable to store file.");
-                e.printStackTrace();
+                return;
+            }
+
+            if (!registered && (command.startsWith("/store ") || command.startsWith("/get ") || command.equals("/dir"))) {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(mainFrame,
+                        "You need to register first.",
+                        "Registration Required",
+                        JOptionPane.ERROR_MESSAGE);
+                });
+                return;
+            }
+
+            processCommand(command);
+        } catch (IOException e) {
+            SwingUtilities.invokeLater(() -> {
+                appendToOutput("\nIO Exception: " + e.getMessage() + "\n" + separatorLine);
+            });
+        }
+    }
+
+    private void createConnect(String host, int port) {
+        try {
+            clientSocket = new Socket(host, port);
+            outputStream = new DataOutputStream(clientSocket.getOutputStream());
+            inputStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
+            appendToOutput("Connection to the File Exchange Server is successful!");
+            connected = true;
+        } catch (IOException e) {
+            appendToOutput("\nError: Connection to the Server has failed! Please check IP Address and Port Number.\n" + separatorLine);
+        }
+    }  
+
+    private void disconnect() {
+        try {
+            if (clientSocket != null && !clientSocket.isClosed()) {
+                outputStream.writeUTF("/disconnect");
+                outputStream.flush();
+                clientSocket.close();
+                appendToOutput("\nConnection closed. Thank you!.\n" + separatorLine);
+                connected = false;
+                registered = false;
+            } else {
+                appendToOutput("\nError: Disconnection failed. Please connect to the server first.\n" + separatorLine);
+            }
+        } catch (IOException e) {
+            appendToOutput("\nError: Disconnection failed. Please connect to the server first.\n" + separatorLine);
+        }
+    }
+
+    private void processCommand(String command) throws IOException {
+        if (command.startsWith("/store ")) {
+            storeFile(command);
+        } else if (command.startsWith("/get ")) {
+            getFile(command);
+        } else if (command.equals("/leave")) {
+            disconnect();
+        } else if (command.equals("/dir")) {
+            sendCommandToServer(command);
+            listFile();
+        } else if (command.startsWith("/register ")) {
+            sendCommandToServer(command);
+            handleRegistrationResponse(command);
+        } else {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(mainFrame, "Error: Command not found.\n" + separatorLine);
+            });
+        }
+    }
+
+    private void storeFile(String command) throws IOException {
+        String filename = command.substring(7).trim();
+        File file = new File(filename);
+        if (file.exists()) {
+            sendCommandToServer(command);
+    
+            String serverSignal = inputStream.readUTF();
+            if (serverSignal.equals("START_OF_FILE")) {
+                uploadFile(filename);
+                serverSignal = inputStream.readUTF();
+                if (serverSignal.equals("END_OF_FILE")) {
+                    String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+                    appendToOutput("\n" + username + "<" + timestamp + ">: Uploaded " + filename + "\n" + separatorLine);
+                }
             }
         } else {
-            System.out.println("\nError: File not found.");
-        }
-    }
-    
-    
-
-    // A method to list files from the server.
-    public void listFiles() {
-        try {
-            out.writeUTF("/dir");
-            String fileList = in.readUTF();
-            System.out.println("\nFiles on server:");
-            System.out.println(fileList);
-        } catch (IOException e) {
-            System.out.println("\nERROR: Unable to retrieve file list.");
+            appendToOutput("File not found: " + filename + "\n" + separatorLine);
         }
     }
 
-    // Retrieves a file from the server based on the provided file name.
-    public void getFile(String fileName) {
-        try {
-            out.writeUTF("/get " + fileName);
-            long fileSize = in.readLong();
-    
-            if (fileSize > 0) {
-                File file = new File(fileName);
-                try (FileOutputStream fileOutput = new FileOutputStream(file)) {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    while (fileSize > 0 && (bytesRead = in.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
-                        fileOutput.write(buffer, 0, bytesRead);
-                        fileSize -= bytesRead;
-                    }
+    private void getFile(String command) throws IOException {
+        sendCommandToServer(command);
+
+        String serverSignal = inputStream.readUTF();
+        if (serverSignal.equals("START_OF_FILE")) {
+            String filename = command.substring(5).trim();
+            downloadFile(filename);
+            serverSignal = inputStream.readUTF();
+            if (serverSignal.equals("END_OF_FILE")) {
+                appendToOutput("\nFile received from Server: " + filename + "\n" + separatorLine);
+            }
+        } else {
+            appendToOutput("\nError: File not found in the server.\n" + separatorLine);
+        }
+    }
+
+    private void sendCommandToServer(String command) throws IOException {
+        if (connected) {
+            outputStream.writeUTF(command);
+            outputStream.flush();
+        } else {
+            appendToOutput("Error: Command parameters do not match or is not allowed.\n" + separatorLine);
+        }
+    }
+
+    private void handleRegistrationResponse(String commandType) throws IOException {
+        StringBuilder responseBuilder = new StringBuilder();
+        String line;
+
+        if (commandType.startsWith("/register ")) {
+            while (!(line = inputStream.readUTF()).equals("END_OF_RESPONSE")) {
+                responseBuilder.append(line).append("\n");
+                if (line.startsWith("Welcome")) {
+                    registered = true;
                 }
-                System.out.println("\nFile retrieved successfully!");
-            } else {
-                System.out.println("\nERROR: File not found on server");
+                if (line.startsWith("USERNAME:")) {
+                    username = line.substring(9);
+                }
+            }
+        }
+        SwingUtilities.invokeLater(() -> {
+            appendToOutput("\n[Server] " + responseBuilder.toString() + separatorLine);
+        });
+    }
+
+    private void uploadFile(String filename) {
+        File file = new File(filename);
+        try (FileInputStream fileIn = new FileInputStream(file)) {
+            long fileSize = file.length();
+            outputStream.writeLong(fileSize);
+            outputStream.flush();
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fileIn.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            outputStream.flush();
+            appendToOutput("\nFile uploaded to server: " + filename + "\n" + separatorLine);
+        } catch (IOException e) {
+            appendToOutput("\nError uploading file: " + e.getMessage() + "\n" + separatorLine);
+        }
+    }
+
+    private void downloadFile(String filename) throws IOException {
+        File directory = new File("./client_downloads");
+        if (!directory.exists()) {
+            directory.mkdir();
+        }
+    
+        File file = new File(directory, filename);
+    
+        try (FileOutputStream fileOut = new FileOutputStream(file)) {
+            long fileSize = inputStream.readLong();
+            long totalBytesRead = 0;
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+    
+            while (totalBytesRead < fileSize) {
+                bytesRead = inputStream.read(buffer, 0, Math.min(buffer.length, (int)(fileSize - totalBytesRead)));
+                fileOut.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+            }
+    
+            appendToOutput("\nFile downloaded and saved to " + file.getAbsolutePath() + "\n" + separatorLine);
+        } catch (IOException e) {
+            appendToOutput("\nError downloading file: " + e.getMessage() + "\n" + separatorLine);
+        }
+    }
+
+    private void listFile() {
+        try {
+            String[] fileNames = inputStream.readUTF().split(",");
+            for (String fileName : fileNames) {
+                appendToOutput("\n[Server] " + fileName + "\n");
             }
         } catch (IOException e) {
-            System.out.println("\nERROR: Unable to retrieve file");
+            appendToOutput("\nError retrieving server file list");
         }
     }
-    
-    // displays the list of available commands
-    public void dispCommands() {
-        System.out.println("\nList of commands:");
-        for (String k : keywords) {
-            System.out.println(k);
-        }
+
+    private void showHelp() {
+        SwingUtilities.invokeLater(() -> {
+            appendToOutput("\nAvailable commands:\n");
+            appendToOutput("/join\n");
+            appendToOutput("/leave\n");
+            appendToOutput("/register\n");
+            appendToOutput("/store\n");
+            appendToOutput("/get\n");
+            appendToOutput("/dir\n");
+            
+        });
+    }
+
+    private void appendToOutput(String message) {
+        SwingUtilities.invokeLater(() -> {
+            outputArea.append(message);
+        });
     }
 
     public static void main(String[] args) {
-        // Example usage: java Client 127.0.0.1 12345
-        if (args.length != 2) {
-            System.out.println("Usage: java Client <server_ip> <port>");
-            return;
-        }
-
-        String address = args[0];
-        int portNum = Integer.parseInt(args[1]);
-
-        Client client = new Client(address, portNum);
-        client.UI();
+        SwingUtilities.invokeLater(Client::new);
     }
 }

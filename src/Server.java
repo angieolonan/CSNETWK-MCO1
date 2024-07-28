@@ -1,234 +1,106 @@
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
 
-// DEVELOPER'S NOTE : Code is untested
 public class Server {
-    private ServerSocket serverSocket;
-    private HashMap<String, ClientHandler> clients = new HashMap<>();
-    private HashMap<String, String> userFiles = new HashMap<>();
-    private List<String> keywords = Arrays.asList("/join", "/leave", "/register", "/store", "/dir", "/get", "/?", "/end");
 
-    public Server(int port) {
-        try {
-            serverSocket = new ServerSocket(port);
-            System.out.println("Server started on port " + port);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    private JFrame mainWindow;
+    private JTextArea logOutput;
+    private JButton toggleServerButton;
+    private ServerSocket server;
+    private boolean running = false;
+    private final ArrayList<ClientSession> connectedClients = new ArrayList<>();
 
-    public void start() {
-        while (true) {
-            try {
-                Socket clientSocket = serverSocket.accept();
-                ClientHandler clientHandler = new ClientHandler(clientSocket, this);
-                clientHandler.start();
-            } catch (IOException e) {
-                e.printStackTrace();
+    public Server() {
+        mainWindow = new JFrame("Server Application");
+        mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainWindow.setSize(400, 300);
+        mainWindow.setLayout(new BorderLayout());
+
+        logOutput = new JTextArea();
+        logOutput.setEditable(false);
+        toggleServerButton = new JButton("Start Server");
+
+        toggleServerButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!running) {
+                    initiateServer();
+                } else {
+                    terminateServer();
+                }
             }
-        }
+        });
+
+        mainWindow.add(new JScrollPane(logOutput), BorderLayout.CENTER);
+        mainWindow.add(toggleServerButton, BorderLayout.SOUTH);
+        mainWindow.setVisible(true);
     }
 
-    public void registerClient(String handle, ClientHandler clientHandler) {
-        clients.put(handle, clientHandler);
+    public void clientDisconnected(Socket socket) {
+        SwingUtilities.invokeLater(() -> {
+            logOutput.append("Client disconnected: " + socket.getInetAddress().getHostAddress() + "\n");
+        });
     }
 
-    public void removeClient(String handle) {
-        clients.remove(handle);
-    }
+    private void initiateServer() {
+        try {
+            server = new ServerSocket(12345);
+            running = true;
+            toggleServerButton.setText("Stop Server");
+            logOutput.append("Server started on port " + server.getLocalPort() + "\n");
 
-    public boolean isHandleTaken(String handle) {
-        return clients.containsKey(handle);
-    }
+            Thread serverThread = new Thread(() -> {
+                try {
+                    while (!server.isClosed()) {
+                        Socket clientSocket = server.accept();
+                        logOutput.append("Client connected: " + clientSocket.getInetAddress().getHostAddress() + "\n");
 
-    public void storeFile(String handle, String filename, byte[] data) {
-        userFiles.put(filename, handle);
-        try (FileOutputStream fos = new FileOutputStream(filename)) {
-            fos.write(data);
+                        ClientSession clientSession = new ClientSession(clientSocket);
+                        connectedClients.add(clientSession);
+                        new Thread(clientSession).start();
+                    }
+                } catch (IOException e) {
+                    logOutput.append("Server has stopped.\n");
+                }
+            });
+            serverThread.start();
+
         } catch (IOException e) {
-            e.printStackTrace();
+            logOutput.append("Error initiating server: " + e.getMessage() + "\n");
         }
-    }    
-
-    public Set<String> getDirectory() {
-        return userFiles.keySet();
     }
 
-    public byte[] getFile(String filename) throws IOException {
-        File file = new File(filename);
-        byte[] data = new byte[(int) file.length()];
-        try (FileInputStream fis = new FileInputStream(file)) {
-            fis.read(data);
+    private void terminateServer() {
+        try {
+            for (ClientSession clientSession : connectedClients) {
+                clientSession.closeConnection();
+            }
+            connectedClients.clear();
+
+            if (!server.isClosed()) {
+                server.close();
+            }
+            running = false;
+            toggleServerButton.setText("Start Server");
+        } catch (IOException e) {
+            logOutput.append("Error stopping server: " + e.getMessage() + "\n");
+            System.exit(1); // Exit with an error status
         }
-        return data;
     }
 
-    public boolean isValidCommand(String command) {
-        return keywords.contains(command);
+    public void logMessage(String message) {
+        SwingUtilities.invokeLater(() -> {
+            logOutput.append(message + "\n");
+        });
     }
 
     public static void main(String[] args) {
-        int port = 12345;
-        Server server = new Server(port);
-        server.start();
-    }
-
-    private static class ClientHandler extends Thread {
-        private Socket clientSocket;
-        private Server server;
-        private DataInputStream in;
-        private DataOutputStream out;
-        private String clientHandle = null;
-
-        public ClientHandler(Socket socket, Server server) {
-            this.clientSocket = socket;
-            this.server = server;
-            try {
-                in = new DataInputStream(clientSocket.getInputStream());
-                out = new DataOutputStream(clientSocket.getOutputStream());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            try {
-                while (true) {
-                    String command = in.readUTF();
-                    String[] commandSplit = command.split(" ");
-                    String cmd = commandSplit[0];
-
-                    if (!server.isValidCommand(cmd)) {
-                        out.writeUTF("Error: Command not found.");
-                        continue;
-                    }
-
-                    switch (cmd) {
-                        case "/leave":
-                            handleLeave();
-                            return; // End the thread after leaving
-                        case "/register":
-                            handleRegister(commandSplit);
-                            break;
-                        case "/store":
-                            handleStore(commandSplit);
-                            break;
-                        case "/dir":
-                            handleDir();
-                            break;
-                        case "/get":
-                            handleGet(commandSplit);
-                            break;
-                        case "/?":
-                            handleHelp();
-                            break;
-                        case "/end":
-                            handleEnd();
-                            break;
-                        default:
-                            out.writeUTF("Error: Command not found");
-                            break;
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    clientSocket.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        private void handleLeave() throws IOException {
-            out.writeUTF("Connection closed. Thank you!");
-            out.flush(); 
-            server.removeClient(clientHandle);
-            in.close();
-            out.close();
-            clientSocket.close();
-
-            System.out.println("Client " + clientHandle + " has disconnected.");
-        }
-
-        private void handleRegister(String[] commandSplit) throws IOException {
-            if (commandSplit.length != 2) {
-                out.writeUTF("Error: Command parameters do not match or is not allowed.");
-                return;
-            }
-            String handle = commandSplit[1];
-            if (server.isHandleTaken(handle)) {
-                out.writeUTF("Error: Registration failed. Handle or alias already exists.");
-            } else {
-                server.registerClient(handle, this);
-                clientHandle = handle;
-                out.writeUTF("Welcome " + handle + "!");
-            }
-        }
-
-        private void handleStore(String[] commandSplit) throws IOException {
-            if (commandSplit.length != 2) {
-                out.writeUTF("Error: Command parameters do not match or are not allowed.");
-                return;
-            }
-            String filename = commandSplit[1];
-            long fileSize = in.readLong(); // Corrected to read a long value for the file size
-        
-            if (fileSize > 0) {
-                byte[] data = new byte[(int) fileSize];
-                in.readFully(data);
-                server.storeFile(clientHandle, filename, data);
-                out.writeUTF(clientHandle + "<" + new Date() + ">: Uploaded " + filename);
-            } else {
-                out.writeUTF("Error: Invalid file size received.");
-            }
-        }        
-
-        private void handleDir() throws IOException {
-            Set<String> files = server.getDirectory();
-            if (files.isEmpty()) {
-                out.writeUTF("Server Directory is empty.");
-            } else {
-                out.writeUTF("Server Directory\n" + String.join("\n", files));
-            }
-        }
-
-        private void handleGet(String[] commandSplit) throws IOException {
-            if (commandSplit.length != 2) {
-                out.writeUTF("Error: Command parameters do not match or are not allowed.");
-                return;
-            }
-            String filename = commandSplit[1];
-            File file = new File(filename);
-            if (!file.exists() || file.isDirectory()) {
-                out.writeLong(-1);
-            } else {
-                out.writeLong(file.length());
-                try (FileInputStream fileInput = new FileInputStream(file)) {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    while ((bytesRead = fileInput.read(buffer)) != -1) {
-                        out.write(buffer, 0, bytesRead);
-                    }
-                }
-                // It's a good practice to ensure the end of the data stream is clear.
-                out.flush();
-            }
-        }
-        
-        private void handleHelp() throws IOException {
-            out.writeUTF("List of commands:\n" + String.join("\n", server.keywords));
-        }
-
-        private void handleEnd() throws IOException {
-            if (clientHandle != null) {
-                handleLeave();
-            }
-            out.writeUTF("Ending program, goodbye!");
-            System.exit(0);
-        }
+        SwingUtilities.invokeLater(() -> new Server());
     }
 }
