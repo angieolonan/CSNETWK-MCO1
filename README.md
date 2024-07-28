@@ -45,7 +45,7 @@ The File Exchange System is designed as the final project for our CSNETWK course
 
 ## Installation and Usage
 1. Download and extract the repository files
-2. Open command prompt and navigate to the repository folder or navigate to the the address bar and type `cmd`
-3. Run the server using `java server`
-4. Run a client using `java client`
-5. Join the server on the clients using `/join 127.0.0.1 12345`
+2. Run the Server java file. This opens the Server Application. Click on Start Server.
+3. Run the Client java file. This opens the Client Application. On the top rectangle, type `/join 127.0.0.1 12345`
+4. To use commands, use the Client Application window and type commands on the top rectangle.
+5. To close the server, click Stop Server in the Server Application.
